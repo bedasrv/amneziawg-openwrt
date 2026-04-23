@@ -52,18 +52,17 @@ jobs:
       run: |
         set -e -x
         base_url="https://downloads.immortalwrt.org/releases/21.02-SNAPSHOT/targets/mediatek/mt7622/"
-        
+
         # Fetch the SDK URL
         sdk_url=$(curl -s "${base_url}" | grep -oP 'href="immortalwrt-sdk[^"]+\.tar\.(zst|xz)"' | sed -e 's/href="//' -e 's/"$//' | head -n1)
-        
+
         if [[ -z "$sdk_url" ]]; then
           echo "SDK file not found at ${base_url}"
           exit 1
         fi
-        
+
         curl -fsLO "$base_url$sdk_url"
         file_name=$(basename "$sdk_url")
-
         # Extract based on file type
         if [[ "$file_name" == *.tar.zst ]]; then
           tar -I zstd -xf "$file_name"
@@ -77,7 +76,7 @@ jobs:
         echo "src-cpy awgopenwrt ../amneziawg" >> openwrt/feeds.conf.default
         ./openwrt/scripts/feeds update -a
         curl -fsL "$base_url/config.buildinfo" > openwrt/.config
-        
+
         # Enable required kernel modules for AmneziaWG
         echo "CONFIG_PACKAGE_kmod-crypto-lib-chacha20poly1305=m" >> openwrt/.config
         echo "CONFIG_PACKAGE_kmod-crypto-lib-curve25519=m" >> openwrt/.config
@@ -96,28 +95,14 @@ jobs:
         echo "CONFIG_PACKAGE_amneziawg-go=m" >> openwrt/.config
         echo "CONFIG_PACKAGE_amneziawg-tools=m" >> openwrt/.config
         echo "CONFIG_PACKAGE_luci-proto-amneziawg=m" >> openwrt/.config
-        
-        # Add debugging for kernel module build
-        echo "CONFIG_IKCONFIG=y" >> openwrt/.config
-        echo "CONFIG_IKCONFIG_PROC=y" >> openwrt/.config
-        echo "CONFIG_DEBUG_INFO=y" >> openwrt/.config
-        echo "CONFIG_DEBUG_INFO_DWARF4=y" >> openwrt/.config
-        
+
         if [ "${{ inputs.compile_go }}" = "true" ]; then
           rm -r openwrt/feeds/packages/lang/golang
           cp -r packages/lang/golang openwrt/feeds/packages/lang
         fi
-        
+
         ./openwrt/scripts/feeds install -a
         make -C openwrt defconfig
-  
-    - name: Compile kernel module dependencies first
-      if: ${{ inputs.compile_kmod }}
-      run: |
-        set -e -x
-        cd openwrt
-        make package/kernel/{clean,download,prepare,compile} -j $(nproc) V=s
-        make package/linux/{clean,download,prepare,compile} -j $(nproc) V=s
 
     - name: Compile kmod-amneziawg
       if: ${{ inputs.compile_kmod }}

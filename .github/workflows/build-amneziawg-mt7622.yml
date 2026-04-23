@@ -63,7 +63,6 @@ jobs:
 
         curl -fsLO "$base_url$sdk_url"
         file_name=$(basename "$sdk_url")
-
         # Extract based on file type
         if [[ "$file_name" == *.tar.zst ]]; then
           tar -I zstd -xf "$file_name"

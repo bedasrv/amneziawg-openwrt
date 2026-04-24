@@ -9,7 +9,7 @@ WIREGUARD_VERSION:=1.0.0
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/amnezia-vpn/amneziawg-linux-kernel-module.git
 # Reference: master branch
-PKG_SOURCE_VERSION:=b2e234ba31b7c95d7c8f272849bf5c5d9c98c5ad
+PKG_SOURCE_VERSION:=v1.0.20241112
 PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)

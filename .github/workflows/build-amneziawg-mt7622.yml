@@ -1,0 +1,139 @@
+name: Build AmneziaWG for MT7622
+
+on:
+  workflow_dispatch:
+    inputs:
+      amneziawg_version:
+        description: "AmneziaWG version"
+        type: string
+        required: true
+        default: "master"
+      compile_kmod:
+        description: "Compile kernel module"
+        type: boolean
+        required: true
+        default: true
+      compile_go:
+        description: "Compile Go implementation"
+        type: boolean
+        required: true
+        default: true
+
+jobs:
+  build-amneziawg-mt7622:
+    name: "Build AmneziaWG for OpenWrt 21.02-SNAPSHOT - mt7622"
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout YAAWG repository
+      uses: actions/checkout@v5
+      with:
+        path: amneziawg
+        ref: ${{ inputs.amneziawg_version }}
+        fetch-depth: 0
+
+    - name: Checkout OpenWRT Packages repository
+      uses: actions/checkout@v5
+      if: ${{ inputs.compile_go }}
+      with:
+        path: packages
+        repository: openwrt/packages
+        fetch-depth: 0
+
+    - name: Install additional packages
+      run: |
+        set -e -x
+        sudo apt-get update
+        sudo apt-get install -y python3-pyelftools python3-dev python3-setuptools swig zstd
+
+    - name: Download and prepare SDK
+      run: |
+        set -e -x
+        base_url="https://downloads.immortalwrt.org/releases/21.02-SNAPSHOT/targets/mediatek/mt7622/"
+
+        # Fetch the SDK URL
+        sdk_url=$(curl -s "${base_url}" | grep -oP 'href="immortalwrt-sdk[^"]+\.tar\.(zst|xz)"' | sed -e 's/href="//' -e 's/"$//' | head -n1)
+
+        if [[ -z "$sdk_url" ]]; then
+          echo "SDK file not found at ${base_url}"
+          exit 1
+        fi
+
+        curl -fsLO "$base_url$sdk_url"
+        file_name=$(basename "$sdk_url")
+        # Extract based on file type
+        if [[ "$file_name" == *.tar.zst ]]; then
+          tar -I zstd -xf "$file_name"
+        else
+          tar -xf "$file_name"
+        fi
+
+        rm -f *.tar.zst *.tar.xz
+        mv immortalwrt-sdk* openwrt
+
+        echo "src-cpy awgopenwrt ../amneziawg" >> openwrt/feeds.conf.default
+        ./openwrt/scripts/feeds update -a
+        curl -fsL "$base_url/config.buildinfo" > openwrt/.config
+
+        # Enable required kernel modules for AmneziaWG
+        echo "CONFIG_PACKAGE_kmod-crypto-lib-chacha20poly1305=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-lib-curve25519=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-kpp=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-rsa=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-hmac=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-md4=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-md5=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-sha1=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-sha256=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-crypto-sha512=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-udptunnel4=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-udptunnel6=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-tun=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_kmod-amneziawg=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_amneziawg-go=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_amneziawg-tools=m" >> openwrt/.config
+        echo "CONFIG_PACKAGE_luci-proto-amneziawg=m" >> openwrt/.config
+
+        if [ "${{ inputs.compile_go }}" = "true" ]; then
+          rm -r openwrt/feeds/packages/lang/golang
+          cp -r packages/lang/golang openwrt/feeds/packages/lang
+        fi
+
+        ./openwrt/scripts/feeds install -a
+        make -C openwrt defconfig
+
+    - name: Compile kmod-amneziawg
+      if: ${{ inputs.compile_kmod }}
+      run: |
+        set -e -x
+        cd openwrt
+        make package/kmod-amneziawg/{clean,download,prepare,compile} -j $(nproc) V=s 2>&1 | tee /tmp/kmod-build.log
+
+    - name: Compile amneziawg-go
+      if: ${{ inputs.compile_go }}
+      run: |
+        set -e -x
+        cd openwrt
+        make package/amneziawg-go/{clean,download,prepare,compile} -j $(nproc) V=s
+
+    - name: Compile luci-proto-amneziawg and amneziawg-tools
+      run: |
+        set -e -x
+        cd openwrt
+        make package/luci-proto-amneziawg/{clean,download,prepare,compile} -j $(nproc) V=s
+        make package/amneziawg-tools/{clean,download,prepare,compile} -j $(nproc) V=s
+
+    - name: Prepare artifacts
+      run: |
+        set -e -x
+        mkdir awgrelease
+        find "openwrt/bin/targets/mediatek/mt7622/packages" -maxdepth 1 -type f -name 'kmod-amneziawg*' -exec cp {} awgrelease \;
+        find "openwrt/bin/packages/aarch64_cortex-a53/awgopenwrt" -maxdepth 1 -type f \( -name '*.ipk' \) -exec cp {} awgrelease \;
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: amneziawg-21.02-SNAPSHOT-mt7622
+        path: awgrelease/*

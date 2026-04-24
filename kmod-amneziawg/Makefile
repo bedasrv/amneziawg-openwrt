@@ -22,7 +22,7 @@ define KernelPackage/amneziawg
 	CATEGORY:=Kernel modules
 	SUBMENU:=Network Support
 	TITLE:=AmneziaWG VPN Kernel Module
-	FILES:=$(PKG_BUILD_DIR)/$(MAKE_PATH)/amneziawg.ko
+	FILES:=$(PKG_BUILD_DIR)/$(MAKE_PATH)/wireguard.ko
 	DEPENDS:= \
 		+kmod-udptunnel4 \
 		+kmod-udptunnel6 \

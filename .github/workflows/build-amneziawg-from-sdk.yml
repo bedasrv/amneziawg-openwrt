@@ -78,29 +78,14 @@ jobs:
         else
           base_url="https://downloads.openwrt.org/releases/${{ inputs.openwrt_version }}/targets/${{ inputs.openwrt_target }}/${{ inputs.openwrt_subtarget }}/"
         fi
-        
-        # Fetch the SDK URL (supports both .tar.xz and .tar.zst)
         sdk_url=$(curl -s "${base_url}" | grep -oP 'href="openwrt-sdk[^"]+\.tar\.(zst|xz)"' | sed -e 's/href="//' -e 's/"$//' | head -n1)
-        
         if [[ -z "$sdk_url" ]]; then
           echo "SDK file not found."
           exit 1
         fi
-        
         curl -fsLO "$base_url$sdk_url"
         file_name=$(basename "$sdk_url")
-
-        # Explicit extraction logic for zst vs xz
-        if [[ "$file_name" == *.tar.zst ]]; then
-          # Ensure zstd is installed on the runner before extracting
-          if ! command -v zstd &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y zstd
-          fi
-          tar -I zstd -xf "$file_name"
-        else
-          tar -xf "$file_name"
-        fi
-
+        tar -xf "$file_name"
         rm -f *.tar.zst *.tar.xz
         mv openwrt-sdk* openwrt
 
@@ -114,12 +99,10 @@ jobs:
         echo "CONFIG_PACKAGE_amneziawg-go=y" >> openwrt/.config
         echo "CONFIG_PACKAGE_amneziawg-tools=y" >> openwrt/.config
         echo "CONFIG_PACKAGE_luci-proto-amneziawg=y" >> openwrt/.config
-        
         if [ "${{ env.compile_go }}" = "true" ]; then
           rm -r openwrt/feeds/packages/lang/golang
           cp -r packages/lang/golang openwrt/feeds/packages/lang
         fi
-        
         ./openwrt/scripts/feeds install -a
         make -C openwrt defconfig
   
@@ -131,13 +114,13 @@ jobs:
         set -e -x
         cd openwrt
         if [ "${{ env.compile_kmod }}" = "true" ]; then
-          make package/kmod-amneziawg/{clean,download,prepare,compile} -j $(nproc) V=s
+          make package/kmod-amneziawg/{clean,download,prepare,compile} -j $(nproc)
         fi
         if [ "${{ env.compile_go }}" = "true" ]; then
-          make package/amneziawg-go/{clean,download,prepare,compile} -j $(nproc) V=s
+          make package/amneziawg-go/{clean,download,prepare,compile} -j $(nproc)
         fi
-        make package/luci-proto-amneziawg/{clean,download,prepare,compile} -j $(nproc) V=s
-        make package/amneziawg-tools/{clean,download,prepare,compile} -j $(nproc) V=s
+        make package/luci-proto-amneziawg/{clean,download,prepare,compile} -j $(nproc)
+        make package/amneziawg-tools/{clean,download,prepare,compile} -j $(nproc)
 
     - name: Prepare artifacts
       run: |

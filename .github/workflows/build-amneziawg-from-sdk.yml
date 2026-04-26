@@ -74,13 +74,13 @@ jobs:
       run: |
         set -e -x
         if [ "${{ inputs.openwrt_version }}" = "SNAPSHOT" ]; then
-          base_url="https://downloads.immortalwrt.org/snapshots/targets/${{ inputs.openwrt_target }}/${{ inputs.openwrt_subtarget }}/"
+          base_url="https://downloads.openwrt.org/snapshots/targets/${{ inputs.openwrt_target }}/${{ inputs.openwrt_subtarget }}/"
         else
-          base_url="https://downloads.immortalwrt.org/releases/${{ inputs.openwrt_version }}/targets/${{ inputs.openwrt_target }}/${{ inputs.openwrt_subtarget }}/"
+          base_url="https://downloads.openwrt.org/releases/${{ inputs.openwrt_version }}/targets/${{ inputs.openwrt_target }}/${{ inputs.openwrt_subtarget }}/"
         fi
         
         # Fetch the SDK URL (supports both .tar.xz and .tar.zst)
-        sdk_url=$(curl -s "${base_url}" | grep -oP 'href="immortalwrt-sdk[^"]+\.tar\.(zst|xz)"' | sed -e 's/href="//' -e 's/"$//' | head -n1)
+        sdk_url=$(curl -s "${base_url}" | grep -oP 'href="openwrt-sdk[^"]+\.tar\.(zst|xz)"' | sed -e 's/href="//' -e 's/"$//' | head -n1)
         
         if [[ -z "$sdk_url" ]]; then
           echo "SDK file not found."
@@ -102,7 +102,7 @@ jobs:
         fi
 
         rm -f *.tar.zst *.tar.xz
-        mv immortalwrt-sdk* openwrt
+        mv openwrt-sdk* openwrt
 
         echo "src-cpy awgopenwrt ../amneziawg" >> openwrt/feeds.conf.default
         ./openwrt/scripts/feeds update -a
